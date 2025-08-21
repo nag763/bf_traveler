@@ -1,0 +1,12 @@
+# Copy this file to terraform.tfvars and update the values
+
+aws_region     = "eu-central-1"
+project_name   = "bf-traveler"
+environment    = "dev"
+container_port = 3000
+cpu            = 256
+memory         = 512
+desired_count  = 2
+
+# Generate a secure random string for production
+nextauth_secret = "your-secure-nextauth-secret-here"
