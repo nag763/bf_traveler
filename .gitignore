@@ -1,0 +1,316 @@
+# =============================================================================
+# BF Traveler - Git Ignore Configuration
+# =============================================================================
+
+# =============================================================================
+# Terraform Files
+# =============================================================================
+# Terraform state files - contain sensitive infrastructure information
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfstate.backup
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+
+# Terraform variable files - contain sensitive configuration
+terraform/terraform.tfvars
+terraform/terraform.tfvars.json
+terraform/*.auto.tfvars
+terraform/*.auto.tfvars.json
+
+# Terraform plan files
+terraform/*.tfplan
+terraform/*.tfplan.*
+
+# Terraform crash log files
+terraform/crash.log
+terraform/crash.*.log
+
+# =============================================================================
+# Environment Variables & Secrets
+# =============================================================================
+# Environment files containing secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+front/bf_traveler/.env*
+!front/bf_traveler/.env.example
+
+# Backup environment files
+*.env.backup.*
+
+# AWS credentials
+.aws/
+aws-credentials.json
+
+# =============================================================================
+# Node.js / Next.js
+# =============================================================================
+# Dependencies
+node_modules/
+front/bf_traveler/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Next.js build output
+front/bf_traveler/.next/
+front/bf_traveler/out/
+
+# Production build
+front/bf_traveler/build/
+front/bf_traveler/dist/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# =============================================================================
+# Docker
+# =============================================================================
+# Docker build context
+.dockerignore
+
+# =============================================================================
+# IDE & Editor Files
+# =============================================================================
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# =============================================================================
+# Operating System Files
+# =============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.tmp
+*.temp
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =============================================================================
+# Logs
+# =============================================================================
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# =============================================================================
+# Temporary Files
+# =============================================================================
+# Temporary directories
+tmp/
+temp/
+.tmp/
+.temp/
+
+# Backup files
+*.backup
+*.bak
+*.orig
+
+# =============================================================================
+# Security & Certificates
+# =============================================================================
+# SSL certificates
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+
+# SSH keys
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
+# GPG keys
+*.gpg
+*.asc
+
+# =============================================================================
+# Build Artifacts
+# =============================================================================
+# Compiled binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# =============================================================================
+# Database Files
+# =============================================================================
+*.sqlite
+*.sqlite3
+*.db
+
+# =============================================================================
+# Cache Directories
+# =============================================================================
+.cache/
+.parcel-cache/
+.next/cache/
+
+# =============================================================================
+# Package Manager Lock Files (Optional - uncomment if needed)
+# =============================================================================
+# Uncomment these if you want to ignore lock files
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# =============================================================================
+# Custom Project Files
+# =============================================================================
+# Local configuration overrides
+local.config.js
+local.config.json
+
+# Test output
+test-results/
+coverage/
+
+# Documentation build
+docs/_build/
+
+# =============================================================================
+# Cloud Provider Specific
+# =============================================================================
+# AWS
+.aws/
+aws-exports.js
+
+# Google Cloud
+gcloud/
+.gcloud/
+
+# Azure
+.azure/
+
+# =============================================================================
+# Kubernetes
+# =============================================================================
+# Kubernetes secrets
+*-secret.yaml
+*-secret.yml
+
+# =============================================================================
+# Monitoring & Analytics
+# =============================================================================
+# Sentry
+.sentryclirc
+
+# =============================================================================
+# End of .gitignore
+# =============================================================================
