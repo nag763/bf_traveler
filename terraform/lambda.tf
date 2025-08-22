@@ -39,17 +39,53 @@ resource "aws_iam_role" "lambda_execution_role" {
         Principal = {
           Service = "lambda.amazonaws.com"
         }
-      }
+      },
     ]
   })
 
   tags = local.tags
 }
 
+resource "aws_iam_policy" "lambda_bedrock_policy" {
+  name        = "lambda-bedrock-policy"
+  description = "Allows Lambda to invoke Bedrock models and write logs"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream"
+        ]
+        Resource = [
+          "arn:aws:bedrock:eu-*:*:inference-profile/*",
+          "arn:aws:bedrock:eu-*::foundation-model/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      }
+    ]
+  })
+}
+
 # Attach basic execution policy to Lambda role
 resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
   role       = aws_iam_role.lambda_execution_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_bedrock_attachment" {
+  role       = aws_iam_role.lambda_execution_role.name
+  policy_arn = aws_iam_policy.lambda_bedrock_policy.arn
 }
 
 # CloudWatch Log Group for Lambda
