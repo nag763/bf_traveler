@@ -44,6 +44,11 @@ check_dependencies() {
         exit 1
     fi
     
+    if ! command -v uv &> /dev/null; then
+        echo_error "uv is not installed. Please install it (e.g., curl -LsSf https://astral.sh/uv/install.sh | sh)"
+        exit 1
+    fi
+    
     echo_info "All dependencies are installed"
 }
 
@@ -242,8 +247,68 @@ EOF
     fi
 }
 
+# Deploy Lambda function
+deploy_lambda() {
+    echo_info "Packaging and deploying Lambda function..."
+
+    cd lambda/chat_handler
+
+    # Clean up previous package
+    rm -f lambda_function.zip
+    rm -rf .venv
+
+    # Create deployment package using uv
+    echo_info "Creating virtual environment and installing dependencies with uv..."
+    uv venv
+    source .venv/bin/activate
+    uv pip install -r requirements.txt
+
+    echo_info "Creating deployment zip..."
+    # Create a temporary directory for packaging
+    PACKAGE_DIR=$(mktemp -d -p .)
+
+    # Install dependencies into the temporary directory using uv
+    echo_info "Installing dependencies into temporary directory with uv..."
+    uv pip install --python-platform linux --python 3.12 -r pyproject.toml --target "$PACKAGE_DIR"
+
+    # Copy all Python source files and other necessary files to the package directory
+    echo_info "Copying lambda function code and other local files to temporary directory..."
+    find . -maxdepth 1 -name "*.py" -exec cp {} "$PACKAGE_DIR/" \;
+
+    # Zip the contents of the package directory
+    echo_info "Creating deployment zip from temporary directory..."
+    cd "$PACKAGE_DIR"
+    zip -r9 ../lambda_function.zip .
+    cd - > /dev/null # Go back to the original directory (lambda/chat_handler)
+
+    # Clean up the temporary directory
+    echo_info "Cleaning up temporary directory..."
+    rm -rf "$PACKAGE_DIR"
+    deactivate
+
+    # Get Lambda function name from Terraform output
+    cd ../../terraform
+    LAMBDA_FUNCTION_NAME=$(terraform output -raw lambda_function_name)
+    cd ..
+
+    # Update Lambda function code
+    aws lambda update-function-code \
+        --function-name $LAMBDA_FUNCTION_NAME \
+        --zip-file fileb://lambda/chat_handler/lambda_function.zip \
+        --region $AWS_REGION
+
+    echo_info "Lambda function deployed successfully"
+}
+
 # Main deployment function
 main() {
+    if [ "$1" == "lambda" ]; then
+        echo_info "Deploying Lambda function only..."
+        check_dependencies
+        deploy_lambda
+        exit 0
+    fi
+
     echo_info "Starting deployment of $PROJECT_NAME-$ENVIRONMENT"
     
     check_dependencies
