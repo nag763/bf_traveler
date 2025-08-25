@@ -34,10 +34,16 @@ variable "memory" {
   default     = 512
 }
 
-variable "desired_count" {
-  description = "Desired number of tasks"
+variable "min_capacity" {
+  description = "Minimum number of tasks for ECS service auto-scaling"
   type        = number
-  default     = 2
+  default     = 0
+}
+
+variable "max_capacity" {
+  description = "Maximum number of tasks for ECS service auto-scaling"
+  type        = number
+  default     = 4
 }
 
 variable "nextauth_secret" {

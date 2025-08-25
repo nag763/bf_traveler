@@ -13,10 +13,10 @@ resource "aws_api_gateway_rest_api" "chat_api" {
 # Cognito User Pool Authorizer
 resource "aws_api_gateway_authorizer" "cognito_authorizer" {
   name                   = "${local.name_prefix}-cognito-authorizer"
-  rest_api_id           = aws_api_gateway_rest_api.chat_api.id
-  type                  = "COGNITO_USER_POOLS"
-  provider_arns         = [aws_cognito_user_pool.main.arn]
-  identity_source       = "method.request.header.Authorization"
+  rest_api_id            = aws_api_gateway_rest_api.chat_api.id
+  type                   = "COGNITO_USER_POOLS"
+  provider_arns          = [aws_cognito_user_pool.main.arn]
+  identity_source        = "method.request.header.Authorization"
   authorizer_credentials = aws_iam_role.api_gateway_cognito_role.arn
 }
 
@@ -47,6 +47,13 @@ resource "aws_api_gateway_resource" "chat_resource" {
   path_part   = "chat"
 }
 
+# API Gateway resource for mcp endpoint
+resource "aws_api_gateway_resource" "mcp_resource" {
+  rest_api_id = aws_api_gateway_rest_api.chat_api.id
+  parent_id   = aws_api_gateway_rest_api.chat_api.root_resource_id
+  path_part   = "mcp"
+}
+
 # POST method for chat endpoint
 resource "aws_api_gateway_method" "chat_post" {
   rest_api_id   = aws_api_gateway_rest_api.chat_api.id
@@ -68,6 +75,26 @@ resource "aws_api_gateway_method" "chat_options" {
   authorization = "NONE"
 }
 
+# POST method for mcp endpoint
+resource "aws_api_gateway_method" "mcp_post" {
+  rest_api_id   = aws_api_gateway_rest_api.chat_api.id
+  resource_id   = aws_api_gateway_resource.mcp_resource.id
+  http_method   = "POST"
+  authorization = "NONE" # No authorization for MCP
+
+  request_parameters = {
+    "method.request.header.Authorization" = false
+  }
+}
+
+# OPTIONS method for CORS preflight for mcp
+resource "aws_api_gateway_method" "mcp_options" {
+  rest_api_id   = aws_api_gateway_rest_api.chat_api.id
+  resource_id   = aws_api_gateway_resource.mcp_resource.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
 # Integration for POST method with Lambda
 resource "aws_api_gateway_integration" "chat_post_integration" {
   rest_api_id = aws_api_gateway_rest_api.chat_api.id
@@ -75,8 +102,8 @@ resource "aws_api_gateway_integration" "chat_post_integration" {
   http_method = aws_api_gateway_method.chat_post.http_method
 
   integration_http_method = "POST"
-  type                   = "AWS_PROXY"
-  uri                    = aws_lambda_function.chat_handler.invoke_arn
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.chat_handler.invoke_arn
 }
 
 # Integration for OPTIONS method (CORS)
@@ -86,7 +113,33 @@ resource "aws_api_gateway_integration" "chat_options_integration" {
   http_method = aws_api_gateway_method.chat_options.http_method
 
   type = "MOCK"
-  
+
+  request_templates = {
+    "application/json" = jsonencode({
+      statusCode = 200
+    })
+  }
+}
+
+# Integration for POST method with MCP Lambda
+resource "aws_api_gateway_integration" "mcp_post_integration" {
+  rest_api_id = aws_api_gateway_rest_api.chat_api.id
+  resource_id = aws_api_gateway_resource.mcp_resource.id
+  http_method = aws_api_gateway_method.mcp_post.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.mcp_handler.invoke_arn
+}
+
+# Integration for OPTIONS method (CORS) for MCP
+resource "aws_api_gateway_integration" "mcp_options_integration" {
+  rest_api_id = aws_api_gateway_rest_api.chat_api.id
+  resource_id = aws_api_gateway_resource.mcp_resource.id
+  http_method = aws_api_gateway_method.mcp_options.http_method
+
+  type = "MOCK"
+
   request_templates = {
     "application/json" = jsonencode({
       statusCode = 200
@@ -113,6 +166,34 @@ resource "aws_api_gateway_method_response" "chat_options_response" {
   rest_api_id = aws_api_gateway_rest_api.chat_api.id
   resource_id = aws_api_gateway_resource.chat_resource.id
   http_method = aws_api_gateway_method.chat_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+  }
+}
+
+# Method response for MCP POST
+resource "aws_api_gateway_method_response" "mcp_post_response" {
+  rest_api_id = aws_api_gateway_rest_api.chat_api.id
+  resource_id = aws_api_gateway_resource.mcp_resource.id
+  http_method = aws_api_gateway_method.mcp_post.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+  }
+}
+
+# Method response for MCP OPTIONS (CORS)
+resource "aws_api_gateway_method_response" "mcp_options_response" {
+  rest_api_id = aws_api_gateway_rest_api.chat_api.id
+  resource_id = aws_api_gateway_resource.mcp_resource.id
+  http_method = aws_api_gateway_method.mcp_options.http_method
   status_code = "200"
 
   response_parameters = {
@@ -154,6 +235,38 @@ resource "aws_api_gateway_integration_response" "chat_options_integration_respon
   depends_on = [aws_api_gateway_integration.chat_options_integration]
 }
 
+# Integration response for MCP POST
+resource "aws_api_gateway_integration_response" "mcp_post_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.chat_api.id
+  resource_id = aws_api_gateway_resource.mcp_resource.id
+  http_method = aws_api_gateway_method.mcp_post.http_method
+  status_code = aws_api_gateway_method_response.mcp_post_response.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
+  }
+
+  depends_on = [aws_api_gateway_integration.mcp_post_integration]
+}
+
+# Integration response for MCP OPTIONS (CORS)
+resource "aws_api_gateway_integration_response" "mcp_options_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.chat_api.id
+  resource_id = aws_api_gateway_resource.mcp_resource.id
+  http_method = aws_api_gateway_method.mcp_options.http_method
+  status_code = aws_api_gateway_method_response.mcp_options_response.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
+  }
+
+  depends_on = [aws_api_gateway_integration.mcp_options_integration]
+}
+
 # API Gateway deployment
 resource "aws_api_gateway_deployment" "chat_api_deployment" {
   rest_api_id = aws_api_gateway_rest_api.chat_api.id
@@ -165,6 +278,11 @@ resource "aws_api_gateway_deployment" "chat_api_deployment" {
       aws_api_gateway_method.chat_options.id,
       aws_api_gateway_integration.chat_post_integration.id,
       aws_api_gateway_integration.chat_options_integration.id,
+      aws_api_gateway_resource.mcp_resource.id,
+      aws_api_gateway_method.mcp_post.id,
+      aws_api_gateway_method.mcp_options.id,
+      aws_api_gateway_integration.mcp_post_integration.id,
+      aws_api_gateway_integration.mcp_options_integration.id,
     ]))
   }
 
@@ -177,6 +295,10 @@ resource "aws_api_gateway_deployment" "chat_api_deployment" {
     aws_api_gateway_method.chat_options,
     aws_api_gateway_integration.chat_post_integration,
     aws_api_gateway_integration.chat_options_integration,
+    aws_api_gateway_method.mcp_post,
+    aws_api_gateway_method.mcp_options,
+    aws_api_gateway_integration.mcp_post_integration,
+    aws_api_gateway_integration.mcp_options_integration,
   ]
 }
 
@@ -221,14 +343,14 @@ resource "aws_api_gateway_stage" "chat_api_stage" {
     destination_arn = aws_cloudwatch_log_group.api_gateway_logs.arn
     format = jsonencode({
       requestId      = "$context.requestId"
-      ip            = "$context.identity.sourceIp"
-      caller        = "$context.identity.caller"
-      user          = "$context.identity.user"
-      requestTime   = "$context.requestTime"
-      httpMethod    = "$context.httpMethod"
-      resourcePath  = "$context.resourcePath"
-      status        = "$context.status"
-      protocol      = "$context.protocol"
+      ip             = "$context.identity.sourceIp"
+      caller         = "$context.identity.caller"
+      user           = "$context.identity.user"
+      requestTime    = "$context.requestTime"
+      httpMethod     = "$context.httpMethod"
+      resourcePath   = "$context.resourcePath"
+      status         = "$context.status"
+      protocol       = "$context.protocol"
       responseLength = "$context.responseLength"
     })
   }

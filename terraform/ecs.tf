@@ -87,7 +87,6 @@ resource "aws_ecs_service" "app" {
   name            = "${local.name_prefix}-service"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.app.arn
-  desired_count   = var.desired_count
   launch_type     = "FARGATE"
 
   network_configuration {
@@ -105,4 +104,32 @@ resource "aws_ecs_service" "app" {
   depends_on = [aws_lb_listener.app]
 
   tags = local.tags
+}
+
+# Auto Scaling Target
+resource "aws_appautoscaling_target" "ecs_service_target" {
+  max_capacity       = var.max_capacity
+  min_capacity       = var.min_capacity
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.app.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+# Auto Scaling Policy
+resource "aws_appautoscaling_policy" "ecs_service_policy" {
+  name               = "${local.name_prefix}-ecs-scaling-policy"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.ecs_service_target.resource_id
+  scalable_dimension = aws_appautoscaling_target.ecs_service_target.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.ecs_service_target.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+
+    target_value       = 50.0 # Target CPU utilization at 50%
+    scale_in_cooldown  = 300  # Cooldown period for scale-in activities (seconds)
+    scale_out_cooldown = 300  # Cooldown period for scale-out activities (seconds)
+  }
 }

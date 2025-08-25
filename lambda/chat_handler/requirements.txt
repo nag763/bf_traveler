@@ -1,8 +1,0 @@
-# No external dependencies required for this Lambda function
-# All required modules are part of the Python 3.12 standard library:
-# - json
-# - logging
-# - time
-# - random
-# - typing
-# - base64

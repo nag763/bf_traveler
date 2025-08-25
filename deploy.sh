@@ -247,77 +247,135 @@ EOF
     fi
 }
 
-# Deploy Lambda function
+# Deploy a specific Lambda function
 deploy_lambda() {
-    echo_info "Packaging and deploying Lambda function..."
+    local LAMBDA_NAME=$1
+    local RUNTIME=$2 # python or nodejs
+    echo_info "Packaging and deploying Lambda function: $LAMBDA_NAME ($RUNTIME)..."
 
-    cd lambda/chat_handler
+    local LAMBDA_DIR="lambda/$LAMBDA_NAME"
+    local ZIP_FILE="${LAMBDA_NAME}_function.zip"
+
+    cd "$LAMBDA_DIR"
 
     # Clean up previous package
-    rm -f lambda_function.zip
-    rm -rf .venv
+    rm -f "$ZIP_FILE"
 
-    # Create deployment package using uv
-    echo_info "Creating virtual environment and installing dependencies with uv..."
-    uv venv
-    source .venv/bin/activate
-    uv pip install -r requirements.txt
+    if [ "$RUNTIME" == "python" ]; then
+        rm -rf .venv
+        # Create virtual environment and install dependencies with uv
+        echo_info "Creating virtual environment and installing dependencies with uv for $LAMBDA_NAME..."
+        uv venv
+        source .venv/bin/activate
+        # Check if requirements.txt exists, otherwise use pyproject.toml
+        if [ -f "requirements.txt" ]; then
+            uv pip install -r requirements.txt
+        elif [ -f "pyproject.toml" ]; then
+            uv pip install -r pyproject.toml # Assuming pyproject.toml can be used with -r
+        else
+            echo_error "No requirements.txt or pyproject.toml found in $LAMBDA_DIR"
+            exit 1
+        fi
 
-    echo_info "Creating deployment zip..."
-    # Create a temporary directory for packaging
-    PACKAGE_DIR=$(mktemp -d -p .)
+        echo_info "Creating deployment zip for $LAMBDA_NAME..."
+        # Create a temporary directory for packaging
+        PACKAGE_DIR=$(mktemp -d -p .)
 
-    # Install dependencies into the temporary directory using uv
-    echo_info "Installing dependencies into temporary directory with uv..."
-    uv pip install --python-platform linux --python 3.12 -r pyproject.toml --target "$PACKAGE_DIR"
+        # Install dependencies into the temporary directory using uv
+        echo_info "Installing dependencies into temporary directory with uv for $LAMBDA_NAME..."
+        # Use pyproject.toml if it exists, otherwise requirements.txt
+        if [ -f "pyproject.toml" ]; then
+            uv pip install --python-platform linux --python 3.12 -r pyproject.toml --target "$PACKAGE_DIR"
+        elif [ -f "requirements.txt" ]; then
+            uv pip install --python-platform linux --python 3.12 -r requirements.txt --target "$PACKAGE_DIR"
+        else
+            echo_error "No requirements.txt or pyproject.toml found for dependency installation in $LAMBDA_DIR"
+            exit 1
+        fi
 
-    # Copy all Python source files and other necessary files to the package directory
-    echo_info "Copying lambda function code and other local files to temporary directory..."
-    find . -maxdepth 1 -name "*.py" -exec cp {} "$PACKAGE_DIR/" \;
+        # Copy all Python source files and other necessary files to the package directory
+        echo_info "Copying lambda function code and other local files to temporary directory for $LAMBDA_NAME..."
+        # Copy all files and directories except .venv and __pycache__
+        find . -maxdepth 1 -type f -name "*.py" -exec cp {} "$PACKAGE_DIR/" \; 
+        find . -maxdepth 1 -type f -name "*.json" -exec cp {} "$PACKAGE_DIR/" \; 
+        find . -maxdepth 1 -type f -name "*.toml" -exec cp {} "$PACKAGE_DIR/" \; 
+        find . -maxdepth 1 -type f -name "*.txt" -exec cp {} "$PACKAGE_DIR/" \; 
+        find . -maxdepth 1 -type f -name "*.lock" -exec cp {} "$PACKAGE_DIR/" \; 
+        find . -maxdepth 1 -type f -name ".*" -exec cp {} "$PACKAGE_DIR/" \; 
 
-    # Zip the contents of the package directory
-    echo_info "Creating deployment zip from temporary directory..."
-    cd "$PACKAGE_DIR"
-    zip -r9 ../lambda_function.zip .
-    cd - > /dev/null # Go back to the original directory (lambda/chat_handler)
+        # Zip the contents of the package directory
+        echo_info "Creating deployment zip from temporary directory for $LAMBDA_NAME..."
+        cd "$PACKAGE_DIR"
+        zip -r9 "../$ZIP_FILE" .
+        cd - > /dev/null # Go back to the original directory (lambda/$LAMBDA_NAME)
 
-    # Clean up the temporary directory
-    echo_info "Cleaning up temporary directory..."
-    rm -rf "$PACKAGE_DIR"
-    deactivate
+        # Clean up the temporary directory
+        echo_info "Cleaning up temporary directory for $LAMBDA_NAME..."
+        rm -rf "$PACKAGE_DIR"
+        deactivate
+    elif [ "$RUNTIME" == "nodejs" ]; then
+        echo_info "Installing Node.js dependencies for $LAMBDA_NAME..."
+        npm install
+
+        echo_info "Creating deployment zip for $LAMBDA_NAME..."
+        # Zip all files including node_modules, but exclude .env, .DS_Store, etc.
+        zip -r9 "$ZIP_FILE" . -x ".*" "node_modules/*" "*.zip" "*.log" "package-lock.json" "package.json"
+        zip -r9 "$ZIP_FILE" node_modules/
+        zip -r9 "$ZIP_FILE" run.sh
+        zip -r9 "$ZIP_FILE" package.json
+        zip -r9 "$ZIP_FILE" package-lock.json
+    else
+        echo_error "Unsupported runtime: $RUNTIME for lambda: $LAMBDA_NAME"
+        exit 1
+    fi
 
     # Get Lambda function name from Terraform output
     cd ../../terraform
-    LAMBDA_FUNCTION_NAME=$(terraform output -raw lambda_function_name)
+    # Use the correct output name based on the lambda being deployed
+    if [ "$LAMBDA_NAME" == "chat_handler" ]; then
+        LAMBDA_FUNCTION_NAME=$(terraform output -raw chat_lambda_function_name)
+    elif [ "$LAMBDA_NAME" == "mcp_handler" ]; then
+        LAMBDA_FUNCTION_NAME=$(terraform output -raw mcp_lambda_function_name)
+    else
+        echo_error "Unknown lambda name: $LAMBDA_NAME"
+        exit 1
+    fi
     cd ..
 
     # Update Lambda function code
     aws lambda update-function-code \
-        --function-name $LAMBDA_FUNCTION_NAME \
-        --zip-file fileb://lambda/chat_handler/lambda_function.zip \
-        --region $AWS_REGION
+        --function-name "$LAMBDA_FUNCTION_NAME" \
+        --zip-file "fileb://lambda/$LAMBDA_NAME/$ZIP_FILE" \
+        --region "$AWS_REGION"
 
-    echo_info "Lambda function deployed successfully"
+    echo_info "Lambda function $LAMBDA_NAME deployed successfully"
 }
 
 # Main deployment function
 main() {
+    check_dependencies
+
     if [ "$1" == "lambda" ]; then
-        echo_info "Deploying Lambda function only..."
-        check_dependencies
-        deploy_lambda
+        if [ -z "$2" ] || [ -z "$3" ]; then
+            echo_error "Usage: $0 lambda <lambda_name> <runtime>"
+            exit 1
+        fi
+        deploy_lambda "$2" "$3"
         exit 0
     fi
 
     echo_info "Starting deployment of $PROJECT_NAME-$ENVIRONMENT"
     
-    check_dependencies
     init_terraform
     deploy_infrastructure
     configure_demo_user
     build_and_push
     update_service
     save_env_vars
+    
+    # Deploy all Lambda functions after saving env vars
+    deploy_lambda "chat_handler" "python"
+    deploy_lambda "mcp_handler" "nodejs"
     
     cd terraform
     APP_URL=$(terraform output -raw application_url)

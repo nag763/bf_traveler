@@ -65,7 +65,7 @@ resource "aws_cognito_user_pool_client" "main" {
     "http://localhost:3000/api/auth/callback/cognito",
     "https://localhost:3000/api/auth/callback/cognito"
   ]
-  
+
   # Logout URLs
   logout_urls = [
     "http://localhost:3000/auth/signin",

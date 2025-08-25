@@ -1,26 +1,23 @@
 import json
 import logging
 import os
-import random
 import time
+from mcp.client.streamable_http import streamablehttp_client
 from typing import Any, Dict
-
 from prompt import MAIN_PROMPT
 from strands import Agent
+from strands.tools.mcp.mcp_client import MCPClient
 from tools import get_country_info
 
-model = os.getenv("BEDROCK_MODEL", "eu.amazon.nova-pro-v1:0")
-
-agent = Agent(
-    model=model,
-    system_prompt=MAIN_PROMPT,
-    tools=[get_country_info],
-)
+model = os.getenv("BEDROCK_MODEL", "eu.anthropic.claude-3-7-sonnet-20250219-v1:0")
 
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+mcp_api_url = os.getenv("MCP_LAMBDA_API_URL")
+
+streamable_http_mcp_client = MCPClient(lambda: streamablehttp_client(mcp_api_url))
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
@@ -41,14 +38,31 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Extract user information from the request context
         user_info = extract_user_info(event)
 
+        # Extract Authorization header
+        auth_header = event.get("headers", {}).get("Authorization")
+        if not auth_header:
+            logger.warning("Authorization header not found in the request.")
+            # Depending on requirements, you might want to return an error here
+            # For now, proceed without it, but the MCP call might fail.
+
         # Parse the request body
         body = parse_request_body(event)
 
         # Validate the message
         message = validate_message(body)
 
-        # Generate a response
-        response_message = agent(message)
+        with streamable_http_mcp_client:
+            # Get the tools from the MCP server
+            mcp_tools = streamable_http_mcp_client.list_tools_sync()
+
+            agent = Agent(
+                model=model,
+                system_prompt=MAIN_PROMPT,
+                tools=[get_country_info] + mcp_tools,
+            )
+
+            # Generate a response
+            response_message = agent(message)
 
         # Return successful response
         return create_response(
@@ -121,129 +135,6 @@ def validate_message(body: Dict[str, Any]) -> str:
         raise ValueError("Message too long (max 1000 characters)")
 
     return message
-
-
-def generate_chat_response(message: str, user_info: Dict[str, str]) -> str:
-    """Generate a chat response based on the user's message."""
-
-    username = user_info.get("username", "User")
-
-    # Simple response patterns based on message content
-    message_lower = message.lower()
-
-    # Greeting responses
-    if any(
-        greeting in message_lower
-        for greeting in [
-            "hello",
-            "hi",
-            "hey",
-            "good morning",
-            "good afternoon",
-            "good evening",
-        ]
-    ):
-        responses = [
-            f"Hello {username}! How can I help you today?",
-            f"Hi there {username}! What's on your mind?",
-            f"Hey {username}! Great to see you here!",
-            f"Good to see you, {username}! How are you doing?",
-        ]
-        return random.choice(responses)
-
-    # Question responses
-    elif "?" in message:
-        responses = [
-            f"That's an interesting question, {username}! Let me think about that...",
-            f"Great question! I'd say that depends on several factors, {username}.",
-            f"Hmm, {username}, that's something worth exploring further!",
-            f"You've got me thinking, {username}. What's your take on it?",
-        ]
-        return random.choice(responses)
-
-    # Help requests
-    elif any(
-        help_word in message_lower
-        for help_word in ["help", "assist", "support", "problem"]
-    ):
-        responses = [
-            f"I'm here to help, {username}! What do you need assistance with?",
-            f"Of course, {username}! I'd be happy to help you out.",
-            f"No problem, {username}! Let me know what you're struggling with.",
-            f"I'm at your service, {username}! What can I do for you?",
-        ]
-        return random.choice(responses)
-
-    # Thank you responses
-    elif any(thanks in message_lower for thanks in ["thank", "thanks", "appreciate"]):
-        responses = [
-            f"You're very welcome, {username}!",
-            f"Happy to help, {username}!",
-            f"Anytime, {username}! That's what I'm here for.",
-            f"My pleasure, {username}!",
-        ]
-        return random.choice(responses)
-
-    # Goodbye responses
-    elif any(
-        bye in message_lower
-        for bye in ["bye", "goodbye", "see you", "farewell", "later"]
-    ):
-        responses = [
-            f"Goodbye, {username}! Have a great day!",
-            f"See you later, {username}! Take care!",
-            f"Farewell, {username}! Until next time!",
-            f"Bye {username}! It was great chatting with you!",
-        ]
-        return random.choice(responses)
-
-    # Weather mentions
-    elif any(
-        weather in message_lower
-        for weather in ["weather", "sunny", "rainy", "cloudy", "hot", "cold"]
-    ):
-        responses = [
-            f"Weather can really affect our mood, can't it {username}?",
-            f"I hope you're enjoying the weather today, {username}!",
-            f"Weather is always a great conversation starter, {username}!",
-            f"Stay comfortable out there, {username}!",
-        ]
-        return random.choice(responses)
-
-    # Technology mentions
-    elif any(
-        tech in message_lower
-        for tech in [
-            "code",
-            "programming",
-            "software",
-            "computer",
-            "tech",
-            "ai",
-            "lambda",
-        ]
-    ):
-        responses = [
-            f"Technology is fascinating, isn't it {username}? I'm running on AWS Lambda myself!",
-            f"Great to meet a fellow tech enthusiast, {username}!",
-            f"The world of technology never stops evolving, {username}!",
-            f"Speaking of tech, {username}, did you know this chat is powered by serverless functions?",
-        ]
-        return random.choice(responses)
-
-    # Default responses
-    else:
-        responses = [
-            f"That's interesting, {username}! Tell me more about that.",
-            f"I see what you mean, {username}. What made you think of that?",
-            f"Thanks for sharing that, {username}! I appreciate your perspective.",
-            f"Fascinating point, {username}! I hadn't considered that angle.",
-            f"You've given me something to think about, {username}!",
-            f"I hear you, {username}. That's definitely worth discussing further.",
-            f"Interesting observation, {username}! What's your experience with that?",
-            f"That resonates with me, {username}. How do you feel about it?",
-        ]
-        return random.choice(responses)
 
 
 def create_response(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:

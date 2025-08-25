@@ -1,6 +1,10 @@
 import requests
 from bs4 import BeautifulSoup
 from strands import tool
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 @tool
@@ -13,10 +17,11 @@ def get_country_info(country_name_in_french) -> str | None:
     Returns:
         str: The text content of the 'sécurité' section if found, otherwise None.
     """
+
     base_url = "https://www.diplomatie.gouv.fr/fr/conseils-aux-voyageurs/conseils-par-pays-destination/"
     full_url = f"{base_url}{country_name_in_french.lower()}"
 
-    print(f"Fetching data from: {full_url}\n")
+    logging.info(f"Fetching data from: {full_url}")
 
     try:
         # 2. Make an HTTP GET request to the URL
@@ -26,7 +31,7 @@ def get_country_info(country_name_in_french) -> str | None:
         response.raise_for_status()
 
     except requests.exceptions.RequestException as e:
-        print(f"❌ Error fetching the URL: {e}")
+        logging.error(f"Error fetching the URL: {e}")
         return
 
     # 3. Parse the HTML content of the page
@@ -42,5 +47,5 @@ def get_country_info(country_name_in_french) -> str | None:
 
         return security_text
     else:
-        print("⚠️ 'sécurité' section not found on the page.")
+        logging.warning("'sécurité' section not found on the page.")
         return None

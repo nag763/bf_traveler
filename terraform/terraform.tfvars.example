@@ -6,7 +6,8 @@ environment    = "dev"
 container_port = 3000
 cpu            = 256
 memory         = 512
-desired_count  = 2
+min_capacity   = 0
+max_capacity   = 4
 
 # Generate a secure random string for production
 nextauth_secret = "your-secure-nextauth-secret-here"

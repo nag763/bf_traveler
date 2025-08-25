@@ -73,7 +73,17 @@ output "chat_api_endpoint" {
   value       = "https://${aws_api_gateway_rest_api.chat_api.id}.execute-api.${var.aws_region}.amazonaws.com/${aws_api_gateway_stage.chat_api_stage.stage_name}/chat"
 }
 
-output "lambda_function_name" {
-  description = "Name of the Lambda function"
+output "chat_lambda_function_name" {
+  description = "Name of the chat Lambda function"
   value       = aws_lambda_function.chat_handler.function_name
+}
+
+output "mcp_lambda_function_name" {
+  description = "Name of the MCP Lambda function"
+  value       = aws_lambda_function.mcp_handler.function_name
+}
+
+output "mcp_api_endpoint" {
+  description = "MCP API endpoint URL"
+  value       = "https://${aws_api_gateway_rest_api.chat_api.id}.execute-api.${var.aws_region}.amazonaws.com/${aws_api_gateway_stage.chat_api_stage.stage_name}/mcp"
 }
