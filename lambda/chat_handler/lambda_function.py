@@ -7,7 +7,6 @@ from typing import Any, Dict
 from prompt import MAIN_PROMPT
 from strands import Agent
 from strands.tools.mcp.mcp_client import MCPClient
-from tools import get_country_info
 
 model = os.getenv("BEDROCK_MODEL", "eu.anthropic.claude-3-7-sonnet-20250219-v1:0")
 
@@ -58,7 +57,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             agent = Agent(
                 model=model,
                 system_prompt=MAIN_PROMPT,
-                tools=[get_country_info] + mcp_tools,
+                tools=[mcp_tools],
             )
 
             # Generate a response
