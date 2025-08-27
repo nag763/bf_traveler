@@ -29,99 +29,138 @@ graph TB
         U[User Browser]
     end
     
-    subgraph "AWS Cloud"
-        subgraph "Public Subnet"
-            ALB[Application Load Balancer]
-            NAT[NAT Gateway]
+    subgraph "AWS Cloud - VPC (10.0.0.0/16)"
+        subgraph "Public Subnets (AZ1 & AZ2)"
+            ALB[Application Load Balancer<br/>Port 80/443]
+            NAT1[NAT Gateway AZ1]
+            NAT2[NAT Gateway AZ2]
+            IGW[Internet Gateway]
         end
         
-        subgraph "Private Subnet"
+        subgraph "Private Subnets (AZ1 & AZ2)"
             subgraph "ECS Fargate Cluster"
-                T1[Task 1<br/>Next.js App]
-                T2[Task 2<br/>Next.js App]
-            end
-            
-            subgraph "Lambda Functions"
-                LC[Chat Handler<br/>Lambda]
-                LM[MCP Handler<br/>Lambda]
+                T1[ECS Task 1<br/>Next.js App<br/>Port 3000]
+                T2[ECS Task 2<br/>Next.js App<br/>Port 3000]
             end
         end
         
-        subgraph "AWS Services"
-            ECR[Elastic Container Registry]
-            CW[CloudWatch Logs]
-            SSM[Systems Manager<br/>Parameter Store]
-            COGNITO[AWS Cognito<br/>User Pool]
-            DYNAMO[DynamoDB<br/>Vacation Data]
-            APIGW[API Gateway]
+        subgraph "Serverless Layer"
+            APIGW[API Gateway<br/>Regional Endpoint]
+            LC[Chat Handler Lambda<br/>Python 3.12]
+            LM[MCP Handler Lambda<br/>Node.js 22.x]
+        end
+        
+        subgraph "AWS Managed Services"
+            ECR[Elastic Container Registry<br/>Image Storage]
+            CW[CloudWatch Logs<br/>Centralized Logging]
+            SSM[Systems Manager<br/>Parameter Store<br/>Secrets Management]
+            COGNITO[AWS Cognito<br/>User Pool + Client<br/>OAuth 2.0]
+            BEDROCK[Amazon Bedrock<br/>AI Models]
         end
     end
     
     subgraph "External Services"
-        GH[GitHub Repository]
+        GH[GitHub Repository<br/>Source Code]
     end
     
-    %% User interactions
-    U -->|HTTPS| ALB
-    ALB -->|Load Balance| T1
-    ALB -->|Load Balance| T2
+    %% User flow
+    U -->|HTTP/HTTPS| ALB
+    ALB -->|Health Check & Load Balance| T1
+    ALB -->|Health Check & Load Balance| T2
     
-    %% Application flow
-    T1 -->|Authentication| COGNITO
-    T2 -->|Authentication| COGNITO
-    T1 -->|API Calls| APIGW
-    T2 -->|API Calls| APIGW
+    %% Internet connectivity
+    IGW -->|Internet Access| ALB
+    T1 -->|Outbound via| NAT1
+    T2 -->|Outbound via| NAT2
+    NAT1 -->|Internet Access| IGW
+    NAT2 -->|Internet Access| IGW
     
-    %% API Gateway to Lambda
-    APIGW -->|Chat Requests| LC
-    APIGW -->|MCP Requests| LM
+    %% Application authentication
+    T1 -->|NextAuth.js| COGNITO
+    T2 -->|NextAuth.js| COGNITO
+    
+    %% API Gateway integration
+    T1 -->|Chat API Calls| APIGW
+    T2 -->|Chat API Calls| APIGW
+    APIGW -->|/chat endpoint<br/>Cognito Auth| LC
+    APIGW -->|/mcp endpoint<br/>No Auth| LM
     
     %% Lambda interactions
-    LC -->|Store/Retrieve| DYNAMO
-    LM -->|Vacation Management| DYNAMO
+    LC -->|Invoke AI Models| BEDROCK
+    LC -->|Call MCP Functions| LM
     LM -->|User Context| COGNITO
     
-    %% Infrastructure
-    T1 -->|Pull Images| ECR
-    T2 -->|Pull Images| ECR
-    T1 -->|Logs| CW
-    T2 -->|Logs| CW
-    LC -->|Logs| CW
-    LM -->|Logs| CW
+    %% Infrastructure services
+    T1 -->|Pull Container Images| ECR
+    T2 -->|Pull Container Images| ECR
+    T1 -->|Application Logs| CW
+    T2 -->|Application Logs| CW
+    LC -->|Function Logs| CW
+    LM -->|Function Logs| CW
+    APIGW -->|Access Logs| CW
     
-    %% Secrets and Configuration
-    T1 -->|Get Secrets| SSM
-    T2 -->|Get Secrets| SSM
-    LC -->|Get Config| SSM
-    LM -->|Get Config| SSM
+    %% Secrets and configuration
+    T1 -->|Get Secrets<br/>(NextAuth, Cognito)| SSM
+    T2 -->|Get Secrets<br/>(NextAuth, Cognito)| SSM
+    LC -->|Get Configuration| SSM
+    LM -->|Get Configuration| SSM
     
-    %% CI/CD
-    GH -->|Deploy| ECR
+    %% CI/CD pipeline
+    GH -->|Docker Build & Push| ECR
+    
+    %% Security Groups
+    T1 -.->|Port 3000 from ALB| T1
+    T2 -.->|Port 3000 from ALB| T2
     
     %% Styling
     classDef aws fill:#ff9900,stroke:#232f3e,stroke-width:2px,color:#fff
     classDef user fill:#4285f4,stroke:#1a73e8,stroke-width:2px,color:#fff
     classDef app fill:#0f9d58,stroke:#137333,stroke-width:2px,color:#fff
     classDef external fill:#ea4335,stroke:#d33b2c,stroke-width:2px,color:#fff
+    classDef network fill:#9aa0a6,stroke:#5f6368,stroke-width:2px,color:#fff
     
-    class ALB,ECR,CW,SSM,COGNITO,DYNAMO,APIGW,NAT aws
+    class ALB,ECR,CW,SSM,COGNITO,APIGW,BEDROCK aws
     class U user
     class T1,T2,LC,LM app
     class GH external
+    class IGW,NAT1,NAT2 network
 ```
 
 ### Architecture Components
 
-- **Frontend**: Next.js 15 with React 19
-- **Authentication**: NextAuth.js with AWS Cognito provider
+#### Frontend Layer
+- **Next.js Application**: React 19 with Next.js 15 framework
+- **Authentication**: NextAuth.js with AWS Cognito OAuth 2.0 integration
+- **Styling**: Tailwind CSS for responsive design
+- **Container**: Docker multi-stage build for optimized production images
+
+#### Infrastructure Layer
+- **VPC**: Custom VPC (10.0.0.0/16) with public/private subnets across 2 AZs
+- **Load Balancer**: Application Load Balancer with health checks and auto-scaling
+- **Compute**: ECS Fargate cluster with auto-scaling (CPU-based)
+- **Container Registry**: ECR with image scanning and lifecycle policies
+
+#### API & Serverless Layer
+- **API Gateway**: Regional REST API with CORS support
+- **Chat Handler**: Python 3.12 Lambda with Bedrock AI integration
+- **MCP Handler**: Node.js 22.x Lambda for Model Context Protocol operations
+- **Authentication**: Cognito User Pool authorizer for secure endpoints
+
+#### Security & Configuration
 - **User Management**: AWS Cognito User Pool (admin-only user creation)
-- **Chat System**: Lambda-based chat handler with DynamoDB storage
-- **MCP Integration**: Model Context Protocol handler for vacation management
-- **Styling**: Tailwind CSS
-- **Container**: Docker with multi-stage build
-- **Infrastructure**: AWS ECS Fargate, ALB, VPC, ECR, Cognito
-- **Secrets Management**: AWS Systems Manager Parameter Store
-- **API Layer**: AWS API Gateway for Lambda function routing
+- **Secrets Management**: AWS Systems Manager Parameter Store for secure configuration
+- **Network Security**: Security groups with minimal required access
+- **Advanced Security**: Cognito advanced security features enabled
+
+#### Monitoring & Logging
+- **CloudWatch**: Centralized logging for all components
+- **Health Checks**: ALB health checks with automatic failover
+- **Container Insights**: ECS cluster monitoring enabled
+- **API Logging**: API Gateway access logs and metrics
+
+#### AI Integration
+- **Amazon Bedrock**: AI model integration for chat functionality
+- **MCP Protocol**: Model Context Protocol for structured AI interactions
 
 ## Prerequisites
 
