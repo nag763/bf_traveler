@@ -1,5 +1,13 @@
 # BF Traveler - Authenticated Chat Application
 
+## Foreword
+
+This project was created as a demonstration to showcase how AI agents and tools work together in modern software development. The BF Traveler application serves as a practical example of integrating various technologies including AWS services, authentication systems, and chat interfaces, while demonstrating the power of agent-driven development workflows.
+
+The project illustrates how agents can orchestrate complex deployments, manage infrastructure as code, and handle sophisticated authentication flows - all while maintaining security best practices and providing a seamless user experience.
+
+## Overview
+
 A Next.js application with authentication and chat interface, deployed on AWS ECS with Fargate.
 
 ## Features
@@ -13,13 +21,107 @@ A Next.js application with authentication and chat interface, deployed on AWS EC
 
 ## Architecture
 
+### System Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph "User Layer"
+        U[User Browser]
+    end
+    
+    subgraph "AWS Cloud"
+        subgraph "Public Subnet"
+            ALB[Application Load Balancer]
+            NAT[NAT Gateway]
+        end
+        
+        subgraph "Private Subnet"
+            subgraph "ECS Fargate Cluster"
+                T1[Task 1<br/>Next.js App]
+                T2[Task 2<br/>Next.js App]
+            end
+            
+            subgraph "Lambda Functions"
+                LC[Chat Handler<br/>Lambda]
+                LM[MCP Handler<br/>Lambda]
+            end
+        end
+        
+        subgraph "AWS Services"
+            ECR[Elastic Container Registry]
+            CW[CloudWatch Logs]
+            SSM[Systems Manager<br/>Parameter Store]
+            COGNITO[AWS Cognito<br/>User Pool]
+            DYNAMO[DynamoDB<br/>Vacation Data]
+            APIGW[API Gateway]
+        end
+    end
+    
+    subgraph "External Services"
+        GH[GitHub Repository]
+    end
+    
+    %% User interactions
+    U -->|HTTPS| ALB
+    ALB -->|Load Balance| T1
+    ALB -->|Load Balance| T2
+    
+    %% Application flow
+    T1 -->|Authentication| COGNITO
+    T2 -->|Authentication| COGNITO
+    T1 -->|API Calls| APIGW
+    T2 -->|API Calls| APIGW
+    
+    %% API Gateway to Lambda
+    APIGW -->|Chat Requests| LC
+    APIGW -->|MCP Requests| LM
+    
+    %% Lambda interactions
+    LC -->|Store/Retrieve| DYNAMO
+    LM -->|Vacation Management| DYNAMO
+    LM -->|User Context| COGNITO
+    
+    %% Infrastructure
+    T1 -->|Pull Images| ECR
+    T2 -->|Pull Images| ECR
+    T1 -->|Logs| CW
+    T2 -->|Logs| CW
+    LC -->|Logs| CW
+    LM -->|Logs| CW
+    
+    %% Secrets and Configuration
+    T1 -->|Get Secrets| SSM
+    T2 -->|Get Secrets| SSM
+    LC -->|Get Config| SSM
+    LM -->|Get Config| SSM
+    
+    %% CI/CD
+    GH -->|Deploy| ECR
+    
+    %% Styling
+    classDef aws fill:#ff9900,stroke:#232f3e,stroke-width:2px,color:#fff
+    classDef user fill:#4285f4,stroke:#1a73e8,stroke-width:2px,color:#fff
+    classDef app fill:#0f9d58,stroke:#137333,stroke-width:2px,color:#fff
+    classDef external fill:#ea4335,stroke:#d33b2c,stroke-width:2px,color:#fff
+    
+    class ALB,ECR,CW,SSM,COGNITO,DYNAMO,APIGW,NAT aws
+    class U user
+    class T1,T2,LC,LM app
+    class GH external
+```
+
+### Architecture Components
+
 - **Frontend**: Next.js 15 with React 19
 - **Authentication**: NextAuth.js with AWS Cognito provider
 - **User Management**: AWS Cognito User Pool (admin-only user creation)
+- **Chat System**: Lambda-based chat handler with DynamoDB storage
+- **MCP Integration**: Model Context Protocol handler for vacation management
 - **Styling**: Tailwind CSS
 - **Container**: Docker with multi-stage build
 - **Infrastructure**: AWS ECS Fargate, ALB, VPC, ECR, Cognito
 - **Secrets Management**: AWS Systems Manager Parameter Store
+- **API Layer**: AWS API Gateway for Lambda function routing
 
 ## Prerequisites
 
