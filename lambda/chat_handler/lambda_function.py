@@ -1,12 +1,21 @@
+"""
+This module contains the Lambda function handler for processing chat messages.
+It integrates with an MCP (Message Control Plane) client to interact with tools
+and uses a language model to generate responses.
+"""
+
+import base64
 import json
 import logging
 import os
 import time
-from mcp.client.streamable_http import streamablehttp_client
 from typing import Any, Dict
-from prompt import MAIN_PROMPT
+
+from mcp.client.streamable_http import streamablehttp_client
 from strands import Agent
 from strands.tools.mcp.mcp_client import MCPClient
+
+from prompt import MAIN_PROMPT
 
 model = os.getenv("BEDROCK_MODEL", "eu.anthropic.claude-3-7-sonnet-20250219-v1:0")
 
@@ -18,7 +27,8 @@ mcp_api_url = os.getenv("MCP_LAMBDA_API_URL")
 
 streamable_http_mcp_client = MCPClient(lambda: streamablehttp_client(mcp_api_url))
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+
+def lambda_handler(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     Lambda function to handle chat messages from authenticated users.
 
@@ -32,7 +42,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     try:
         # Log the incoming event for debugging
-        logger.info(f"Received event: {json.dumps(event, default=str)}")
+        logger.info("Received event: %s", json.dumps(event, default=str))
 
         # Extract user information from the request context
         user_info = extract_user_info(event)
@@ -75,11 +85,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         )
 
     except ValueError as e:
-        logger.error(f"Validation error: {str(e)}")
+        logger.error("Validation error: %s", e)
         return create_response(400, {"success": False, "error": str(e)})
 
-    except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("Unexpected error: %s", e)
         return create_response(
             500, {"success": False, "error": "Internal server error"}
         )
@@ -101,7 +111,7 @@ def extract_user_info(event: Dict[str, Any]) -> Dict[str, str]:
         "sub": claims.get("sub", "unknown-sub"),
     }
 
-    logger.info(f"Extracted user info: {user_info}")
+    logger.info("Extracted user info: %s", user_info)
     return user_info
 
 
@@ -112,14 +122,12 @@ def parse_request_body(event: Dict[str, Any]) -> Dict[str, Any]:
 
     # Handle base64 encoded body if present
     if event.get("isBase64Encoded", False):
-        import base64
-
         body = base64.b64decode(body).decode("utf-8")
 
     try:
         return json.loads(body)
     except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON in request body: {str(e)}")
+        raise ValueError(f"Invalid JSON in request body: {str(e)}") from e
 
 
 def validate_message(body: Dict[str, Any]) -> str:
@@ -144,7 +152,9 @@ def create_response(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:
         "headers": {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+            "Access-Control-Allow-Headers": (
+                "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token"
+            ),
             "Access-Control-Allow-Methods": "POST,OPTIONS",
         },
         "body": json.dumps(body),

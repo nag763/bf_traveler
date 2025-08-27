@@ -1,3 +1,6 @@
+"""This module contains the main prompt for the government travel assistant.
+"""
+
 MAIN_PROMPT = """
 You are a government travel assistant. 
 Your role is to help users with their travel-related queries, providing accurate and helpful responses based on the information provided. 
