@@ -28,7 +28,7 @@ graph TB
     subgraph "User Layer"
         U[User Browser]
     end
-    
+
     subgraph "AWS Cloud - VPC (10.0.0.0/16)"
         subgraph "Public Subnets (AZ1 & AZ2)"
             ALB[Application Load Balancer<br/>Port 80/443]
@@ -36,20 +36,20 @@ graph TB
             NAT2[NAT Gateway AZ2]
             IGW[Internet Gateway]
         end
-        
+
         subgraph "Private Subnets (AZ1 & AZ2)"
             subgraph "ECS Fargate Cluster"
                 T1[ECS Task 1<br/>Next.js App<br/>Port 3000]
                 T2[ECS Task 2<br/>Next.js App<br/>Port 3000]
             end
         end
-        
+
         subgraph "Serverless Layer"
             APIGW[API Gateway<br/>Regional Endpoint]
             LC[Chat Handler Lambda<br/>Python 3.12]
             LM[MCP Handler Lambda<br/>Node.js 22.x]
         end
-        
+
         subgraph "AWS Managed Services"
             ECR[Elastic Container Registry<br/>Image Storage]
             CW[CloudWatch Logs<br/>Centralized Logging]
@@ -58,38 +58,38 @@ graph TB
             BEDROCK[Amazon Bedrock<br/>AI Models]
         end
     end
-    
+
     subgraph "External Services"
         GH[GitHub Repository<br/>Source Code]
     end
-    
+
     %% User flow
     U -->|HTTP/HTTPS| ALB
     ALB -->|Health Check & Load Balance| T1
     ALB -->|Health Check & Load Balance| T2
-    
+
     %% Internet connectivity
     IGW -->|Internet Access| ALB
     T1 -->|Outbound via| NAT1
     T2 -->|Outbound via| NAT2
     NAT1 -->|Internet Access| IGW
     NAT2 -->|Internet Access| IGW
-    
+
     %% Application authentication
     T1 -->|NextAuth.js| COGNITO
     T2 -->|NextAuth.js| COGNITO
-    
+
     %% API Gateway integration
     T1 -->|Chat API Calls| APIGW
     T2 -->|Chat API Calls| APIGW
-    APIGW -->|/chat endpoint<br/>Cognito Auth| LC
-    APIGW -->|/mcp endpoint<br/>No Auth| LM
-    
+    APIGW -->|/chat endpoint| LC
+    APIGW -->|/mcp endpoint| LM
+
     %% Lambda interactions
     LC -->|Invoke AI Models| BEDROCK
     LC -->|Call MCP Functions| LM
     LM -->|User Context| COGNITO
-    
+
     %% Infrastructure services
     T1 -->|Pull Container Images| ECR
     T2 -->|Pull Container Images| ECR
@@ -98,27 +98,27 @@ graph TB
     LC -->|Function Logs| CW
     LM -->|Function Logs| CW
     APIGW -->|Access Logs| CW
-    
+
     %% Secrets and configuration
-    T1 -->|Get Secrets<br/>(NextAuth, Cognito)| SSM
-    T2 -->|Get Secrets<br/>(NextAuth, Cognito)| SSM
+    T1 -->|Get Secrets| SSM
+    T2 -->|Get Secrets| SSM
     LC -->|Get Configuration| SSM
     LM -->|Get Configuration| SSM
-    
+
     %% CI/CD pipeline
     GH -->|Docker Build & Push| ECR
-    
+
     %% Security Groups
     T1 -.->|Port 3000 from ALB| T1
     T2 -.->|Port 3000 from ALB| T2
-    
+
     %% Styling
     classDef aws fill:#ff9900,stroke:#232f3e,stroke-width:2px,color:#fff
     classDef user fill:#4285f4,stroke:#1a73e8,stroke-width:2px,color:#fff
     classDef app fill:#0f9d58,stroke:#137333,stroke-width:2px,color:#fff
     classDef external fill:#ea4335,stroke:#d33b2c,stroke-width:2px,color:#fff
     classDef network fill:#9aa0a6,stroke:#5f6368,stroke-width:2px,color:#fff
-    
+
     class ALB,ECR,CW,SSM,COGNITO,APIGW,BEDROCK aws
     class U user
     class T1,T2,LC,LM app
@@ -129,36 +129,42 @@ graph TB
 ### Architecture Components
 
 #### Frontend Layer
+
 - **Next.js Application**: React 19 with Next.js 15 framework
 - **Authentication**: NextAuth.js with AWS Cognito OAuth 2.0 integration
 - **Styling**: Tailwind CSS for responsive design
 - **Container**: Docker multi-stage build for optimized production images
 
 #### Infrastructure Layer
+
 - **VPC**: Custom VPC (10.0.0.0/16) with public/private subnets across 2 AZs
 - **Load Balancer**: Application Load Balancer with health checks and auto-scaling
 - **Compute**: ECS Fargate cluster with auto-scaling (CPU-based)
 - **Container Registry**: ECR with image scanning and lifecycle policies
 
 #### API & Serverless Layer
+
 - **API Gateway**: Regional REST API with CORS support
 - **Chat Handler**: Python 3.12 Lambda with Bedrock AI integration
 - **MCP Handler**: Node.js 22.x Lambda for Model Context Protocol operations
 - **Authentication**: Cognito User Pool authorizer for secure endpoints
 
 #### Security & Configuration
+
 - **User Management**: AWS Cognito User Pool (admin-only user creation)
 - **Secrets Management**: AWS Systems Manager Parameter Store for secure configuration
 - **Network Security**: Security groups with minimal required access
 - **Advanced Security**: Cognito advanced security features enabled
 
 #### Monitoring & Logging
+
 - **CloudWatch**: Centralized logging for all components
 - **Health Checks**: ALB health checks with automatic failover
 - **Container Insights**: ECS cluster monitoring enabled
 - **API Logging**: API Gateway access logs and metrics
 
 #### AI Integration
+
 - **Amazon Bedrock**: AI model integration for chat functionality
 - **MCP Protocol**: Model Context Protocol for structured AI interactions
 
@@ -343,6 +349,7 @@ Use the undeploy script for safe and complete cleanup:
 ```
 
 The undeploy script will:
+
 - Clean up all Docker images from ECR
 - Destroy all AWS infrastructure using Terraform
 - Reset local environment files to templates
